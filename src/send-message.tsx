@@ -39,100 +39,138 @@ const storage: Storage = {
 };
 const states = {
   accepted: {
-    title: "Delivery accepted",
+    title: "Message accepted",
+    label: "Accepted",
     color: Color.Green,
     icon: Icon.CheckCircle,
-    text: "The webhook accepted your message. This is a delivery receipt. Read the Bot’s answer in its Grok Bot conversation.",
+    text: "Your message was accepted for delivery. The Bot may still be processing it.",
+    next: "Open Grok Bot to read the reply.",
   },
   rejected: {
-    title: "Delivery rejected",
+    title: "Message rejected",
+    label: "Rejected",
     color: Color.Red,
     icon: Icon.XMarkCircle,
-    text: "The webhook rejected this request. Check the existing sender setup in your terminal. No automatic retry was made.",
+    text: "The webhook rejected this message. No automatic retry was made.",
+    next: "Check this Bot’s routine in Grok Bot and the existing sender setup in your terminal before composing a new message.",
   },
   unknown: {
-    title: "Delivery unknown",
+    title: "Check before sending again",
+    label: "Unknown",
     color: Color.Orange,
     icon: Icon.QuestionMarkCircle,
-    text: "The sender may have delivered this message. Keep this request ID and check the actual Bot conversation before composing another message. Refresh only checks the receipt; it never resends.",
+    text: "This message may have arrived, but delivery couldn’t be confirmed.",
+    next: "Check the Bot’s conversation first. Keep this request ID and check its receipt without resending.",
   },
 };
 
 function ReceiptView({
   initial,
+  bots,
   onUpdate,
 }: {
   initial: Receipt;
+  bots: Bot[];
   onUpdate: () => Promise<void>;
 }) {
+  const { pop } = useNavigation();
   const [receipt, setReceipt] = useState(initial);
   const [busy, setBusy] = useState(false);
+  const [details, setDetails] = useState(false);
+  const refreshing = useRef(false);
   const state = states[receipt.status];
+  const name =
+    bots.find((bot) => bot.alias === receipt.bot)?.name ?? receipt.bot;
   async function refresh() {
+    if (refreshing.current) return;
+    refreshing.current = true;
     setBusy(true);
     try {
       const next = await sender.status(receipt);
       await saveReceipt(storage, next);
       setReceipt(next);
-      await onUpdate();
+      await onUpdate().catch(() => {});
       await showToast({
         style: Toast.Style.Success,
         title: "Receipt checked",
-        message: "No message was sent.",
+        message: "No message was resent.",
       });
     } catch {
       await showToast({
         style: Toast.Style.Failure,
         title: "Receipt unavailable",
-        message: "Last known state kept. No message was resent.",
+        message:
+          "Last known state kept. Check the Bot’s conversation before resending.",
       });
     } finally {
+      refreshing.current = false;
       setBusy(false);
     }
   }
   return (
     <Detail
-      navigationTitle="Delivery receipt"
+      navigationTitle={`${name} · ${state.label}`}
       isLoading={busy}
-      markdown={`# ${state.title}\n\n${state.text}\n\n---\n\n**Request ID**\n\n\`${receipt.requestId}\`\n\nCredentials and message text are not stored in this extension’s history.`}
+      markdown={`# ${state.title}\n\n${state.text}\n\n${state.next}${details ? `\n\n---\n\n**Request ID**\n\n\`${receipt.requestId}\`\n\n${receipt.httpStatus ? `HTTP ${receipt.httpStatus} · ` : ""}This is a delivery receipt, not the Bot’s answer.` : ""}`}
       metadata={
         <Detail.Metadata>
+          <Detail.Metadata.Label title="To" text={name} icon={Icon.Message} />
           <Detail.Metadata.TagList title="Delivery">
             <Detail.Metadata.TagList.Item
-              text={receipt.status}
+              text={state.label}
               color={state.color}
+              icon={state.icon}
             />
           </Detail.Metadata.TagList>
-          <Detail.Metadata.Label title="Bot" text={receipt.bot} />
+          <Detail.Metadata.Separator />
           <Detail.Metadata.Label
-            title="Created"
-            text={new Date(receipt.createdAt).toLocaleString()}
+            title="Submitted"
+            text={new Date(receipt.createdAt).toLocaleString(undefined, {
+              dateStyle: "medium",
+              timeStyle: "short",
+            })}
           />
-          {receipt.httpStatus && (
-            <Detail.Metadata.Label
-              title="HTTP"
-              text={String(receipt.httpStatus)}
-            />
-          )}
-          <Detail.Metadata.Label title="Bot answer" text="Read in Grok Bot" />
+          <Detail.Metadata.Label title="Reply" text="In Grok Bot" />
         </Detail.Metadata>
       }
       actions={
         <ActionPanel>
-          <Action
-            title="Refresh Delivery Receipt"
-            icon={Icon.ArrowClockwise}
-            onAction={refresh}
-          />
-          <Action
-            title="Open Grok Bot"
-            icon={Icon.Message}
-            onAction={openBot}
-          />
-          <Action.CopyToClipboard
-            title="Copy Request ID"
-            content={receipt.requestId}
-          />
+          <ActionPanel.Section>
+            <Action
+              title="Open Grok Bot"
+              icon={Icon.Message}
+              onAction={openBot}
+            />
+            <Action
+              title={busy ? "Checking Receipt…" : "Check Delivery Receipt"}
+              icon={Icon.ArrowClockwise}
+              shortcut={{ modifiers: ["cmd"], key: "r" }}
+              onAction={refresh}
+            />
+          </ActionPanel.Section>
+          <ActionPanel.Section title="Receipt">
+            <Action
+              title={
+                details ? "Hide Delivery Details" : "Show Delivery Details"
+              }
+              icon={Icon.Info}
+              shortcut={{ modifiers: ["cmd"], key: "d" }}
+              onAction={() => setDetails(!details)}
+            />
+            <Action.CopyToClipboard
+              title="Copy Request ID"
+              content={receipt.requestId}
+              shortcut={{ modifiers: ["cmd", "shift"], key: "c" }}
+            />
+          </ActionPanel.Section>
+          <ActionPanel.Section>
+            <Action
+              title="Back to Bots"
+              icon={Icon.ArrowLeft}
+              shortcut={{ modifiers: ["cmd"], key: "n" }}
+              onAction={pop}
+            />
+          </ActionPanel.Section>
         </ActionPanel>
       }
     />
@@ -186,7 +224,8 @@ function Compose({
     }
   }
 
-  if (result) return <ReceiptView initial={result} onUpdate={onUpdate} />;
+  if (result)
+    return <ReceiptView initial={result} bots={bots} onUpdate={onUpdate} />;
   return (
     <Form
       navigationTitle={`Message ${selectedBot.name}`}
@@ -322,7 +361,13 @@ export default function Command() {
               title="View Delivery"
               icon={Icon.Document}
               onAction={() =>
-                push(<ReceiptView initial={receipt} onUpdate={reloadHistory} />)
+                push(
+                  <ReceiptView
+                    initial={receipt}
+                    bots={bots}
+                    onUpdate={reloadHistory}
+                  />,
+                )
               }
             />
             <Action
