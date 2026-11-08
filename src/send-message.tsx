@@ -141,9 +141,11 @@ function ReceiptView({
 
 function Compose({
   bots,
+  initialBot,
   onUpdate,
 }: {
   bots: Bot[];
+  initialBot: Bot;
   onUpdate: () => Promise<void>;
 }) {
   const { push } = useNavigation();
@@ -199,7 +201,7 @@ function Compose({
         title="Private Mac sender"
         text="Send to an existing hosted Bot. Credentials stay in the Mac sender. A delivery receipt is not the Bot’s answer."
       />
-      <Form.Dropdown id="bot" title="Bot" defaultValue={bots[0]?.alias}>
+      <Form.Dropdown id="bot" title="Bot" defaultValue={initialBot.alias}>
         {bots.map((bot) => (
           <Form.Dropdown.Item
             key={bot.alias}
@@ -231,17 +233,26 @@ export default function Command() {
   const [history, setHistory] = useState<Receipt[]>([]);
   const [busy, setBusy] = useState(true);
   const [error, setError] = useState<string>();
+  const [selectedId, setSelectedId] = useState<string>();
   const reloadHistory = async () => setHistory(await loadHistory(storage));
   async function load() {
     setBusy(true);
     setError(undefined);
     try {
-      await reloadHistory();
-      setBots(await sender.list());
+      const receipts = await loadHistory(storage);
+      setHistory(receipts);
+      const configured = await sender.list();
+      setBots(configured);
+      const attention = receipts.find(
+        (receipt) => receipt.status !== "accepted",
+      );
+      setSelectedId(
+        attention?.requestId ?? (configured[0] && `bot-${configured[0].alias}`),
+      );
     } catch {
       setBots([]);
       setError(
-        "Check the existing Mac sender and delivery history in your terminal. Private diagnostics are hidden.",
+        "Check ~/.local/bin/grok-bots and delivery history in your terminal, then reload. Private diagnostics stay hidden.",
       );
     } finally {
       setBusy(false);
@@ -250,90 +261,172 @@ export default function Command() {
   useEffect(() => {
     void load();
   }, []);
+
+  function receiptRow(receipt: Receipt) {
+    const state = states[receipt.status];
+    const name =
+      bots.find((bot) => bot.alias === receipt.bot)?.name ?? receipt.bot;
+    const label = {
+      accepted: "Accepted",
+      rejected: "Rejected",
+      unknown: "Unknown",
+    }[receipt.status];
+    return (
+      <List.Item
+        id={receipt.requestId}
+        key={receipt.requestId}
+        title={name}
+        subtitle={
+          receipt.status === "unknown"
+            ? "Check conversation before resending"
+            : undefined
+        }
+        keywords={[
+          receipt.requestId,
+          receipt.bot,
+          receipt.status,
+          "receipt",
+          "history",
+        ]}
+        icon={{ source: state.icon, tintColor: state.color }}
+        accessories={[
+          { tag: { value: label, color: state.color } },
+          {
+            date: new Date(receipt.createdAt),
+            tooltip: `${new Date(receipt.createdAt).toLocaleString()} · ${receipt.requestId}`,
+          },
+        ]}
+        actions={
+          <ActionPanel>
+            <Action
+              title="View Delivery"
+              icon={Icon.Document}
+              onAction={() =>
+                push(<ReceiptView initial={receipt} onUpdate={reloadHistory} />)
+              }
+            />
+            <Action
+              title="Open Grok Bot"
+              icon={Icon.Message}
+              onAction={openBot}
+            />
+            <Action.CopyToClipboard
+              title="Copy Request ID"
+              content={receipt.requestId}
+            />
+            <Action
+              title="Reload Bots and History"
+              icon={Icon.ArrowClockwise}
+              shortcut={{ modifiers: ["cmd"], key: "r" }}
+              onAction={load}
+            />
+          </ActionPanel>
+        }
+      />
+    );
+  }
   return (
     <List
       isLoading={busy}
       navigationTitle="Grok Bots"
-      searchBarPlaceholder="Find a Bot or delivery receipt…"
+      searchBarPlaceholder="Message a Bot or find a delivery…"
+      selectedItemId={selectedId}
+      onSelectionChange={(id) => setSelectedId(id ?? undefined)}
     >
-      <List.Section
-        title="Compose"
-        subtitle="Existing hosted Bots · private Mac sender"
-      >
-        {bots.length > 0 && (
+      {error && (
+        <List.Section title="Connection">
           <List.Item
-            title="New Message"
-            subtitle={bots.map((bot) => bot.name).join(" · ")}
-            icon={{ source: Icon.ArrowUp, tintColor: Color.Blue }}
+            id="sender-error"
+            title="Sender unavailable"
+            subtitle="Reload to reconnect"
+            icon={{ source: Icon.ExclamationMark, tintColor: Color.Orange }}
             actions={
               <ActionPanel>
                 <Action
-                  title="Compose Message"
-                  onAction={() =>
-                    push(<Compose bots={bots} onUpdate={reloadHistory} />)
-                  }
-                />
-                <Action
-                  title="Reload Bots"
+                  title="Reload Bots and History"
                   icon={Icon.ArrowClockwise}
                   onAction={load}
+                />
+                <Action
+                  title="Show Setup Help"
+                  icon={Icon.Info}
+                  onAction={() =>
+                    push(
+                      <Detail
+                        markdown={`# Check the Mac sender\n\n${error}`}
+                      />,
+                    )
+                  }
                 />
               </ActionPanel>
             }
           />
-        )}
+        </List.Section>
+      )}
+      <List.Section title="Needs attention">
+        {history
+          .filter((receipt) => receipt.status !== "accepted")
+          .map(receiptRow)}
       </List.Section>
-      <List.Section
-        title="Delivery history"
-        subtitle="Receipts only · answers appear in Grok Bot"
-      >
-        {history.map((receipt) => (
+      <List.Section title="Message a Bot">
+        {bots.map((bot) => (
           <List.Item
-            key={receipt.requestId}
-            title={states[receipt.status].title}
-            subtitle={receipt.bot}
-            keywords={[receipt.requestId]}
-            icon={{
-              source: states[receipt.status].icon,
-              tintColor: states[receipt.status].color,
-            }}
-            accessories={[{ date: new Date(receipt.createdAt) }]}
+            id={`bot-${bot.alias}`}
+            key={bot.alias}
+            title={bot.name}
+            subtitle="Write a message"
+            keywords={[bot.alias, "new", "compose", "send"]}
+            icon={{ source: Icon.Message, tintColor: Color.Blue }}
             actions={
               <ActionPanel>
                 <Action
-                  title="Inspect Receipt"
+                  title={`Message ${bot.name}`}
+                  icon={Icon.Pencil}
                   onAction={() =>
                     push(
-                      <ReceiptView
-                        initial={receipt}
+                      <Compose
+                        bots={bots}
+                        initialBot={bot}
                         onUpdate={reloadHistory}
                       />,
                     )
                   }
                 />
-                <Action.CopyToClipboard
-                  title="Copy Request ID"
-                  content={receipt.requestId}
+                <Action
+                  title="Open Grok Bot"
+                  icon={Icon.Message}
+                  onAction={openBot}
+                />
+                <Action
+                  title="Reload Bots and History"
+                  icon={Icon.ArrowClockwise}
+                  shortcut={{ modifiers: ["cmd"], key: "r" }}
+                  onAction={load}
                 />
               </ActionPanel>
             }
           />
         ))}
       </List.Section>
-      {bots.length === 0 && (
+      <List.Section
+        title="Recent deliveries"
+        subtitle="Message text isn’t saved"
+      >
+        {history
+          .filter((receipt) => receipt.status === "accepted")
+          .map(receiptRow)}
+      </List.Section>
+      {!busy && !error && (
         <List.EmptyView
-          title={error ? "Mac sender unavailable" : "No Bots configured"}
-          description={
-            error ??
-            "Configure aliases privately with grok-bots in your terminal, then reload."
-          }
+          title="No Bots configured"
+          description="Add a Bot privately with grok-bots in your terminal, then reload."
           icon={Icon.Message}
           actions={
             <ActionPanel>
               <Action
-                title="Reload"
-                onAction={load}
+                title="Reload Bots"
                 icon={Icon.ArrowClockwise}
+                onAction={load}
               />
             </ActionPanel>
           }
