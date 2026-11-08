@@ -8,6 +8,8 @@ A native Raycast extension for Alex’s existing hosted Grok Bots. Select a conf
 
 Open Raycast and run **Message Grok Bot**. Choose **Fleet** or **Goji** directly from the live Bot list; the composer opens with that recipient selected and the message field focused. Use **Send to Fleet** (or the selected Bot) to send. The receipt’s primary action opens **Grok Bot** to read the answer. **Check Delivery Receipt** only reads the receipt; it never resends. **Show Delivery Details** reveals the request ID and HTTP status, and **Copy Request ID** copies the ID. Native Actions also provide Refresh, Copy and Back to Bots shortcuts.
 
+You can also type `fleet say hi` in the Bot list. Press Return to open Fleet’s composer with `say hi` filled in, review it, then use **Send to Fleet**. Typing and opening a draft never sends it. An unmatched search shows **No matching Bots or deliveries** with **Clear Search**, rather than claiming your configured Bots are missing.
+
 - **Accepted:** the webhook accepted the message; the Bot has not necessarily answered.
 - **Rejected:** a definitive webhook rejection. Check the sender setup privately.
 - **Unknown:** the sender may have delivered it. Keep the ID and inspect the Bot conversation before composing another message. Never change an uncertain request ID to bypass duplicate protection.
@@ -25,6 +27,8 @@ npm run dev
 ```
 
 `ray develop` registers the native command with Raycast and watches the source. After stopping it, the last compiled command remains installed under `~/.config/raycast/extensions/grok-bots`. Run `npm run dev` again to update. No Raycast account, Pro subscription, API key preference, hosted service or new Bot routine is needed. This personal extension is not published to the Raycast Store. Full `ray lint` validates the author against the public Store and reports that `saphid` has no Store profile; `npm run lint` runs ESLint and Prettier directly for this local extension. Type checking, ESLint, formatting, tests, icon validation and compilation have been checked separately.
+
+If installation/testing opens the command through a `raycast://` link, Raycast may show **Request to run Message Grok Bot** because it was triggered outside Raycast. Choose **Always Run Command** once to remember approval for external launches of this command. **Run Command** approves only that launch. This permission belongs to Raycast; the extension cannot grant it. You can also open Raycast and select **Message Grok Bot** directly.
 
 ## Security and delivery contract
 
