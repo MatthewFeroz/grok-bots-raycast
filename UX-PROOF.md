@@ -36,3 +36,13 @@ The native Actions menu is a separate WindowServer window. Its AX tree and frame
 `npm run check` covers TypeScript, the sender/security regressions, the new history-order regression, ESLint, Prettier and the native Raycast build. The original delivery/security proof and toolchain limitations remain in PROOF.md.
 
 Final `npm run check` passed on Linux and macOS: **12 tests passed, 0 failed**, with type checking, linting, formatting and compilation green. Live installed bundle readback: `Installed bundle exists: True`; `Installed bundle contains test fixtures: False`. Source hashes match the validated Mac copy. An empty composer displayed **Write a message first** without sending.
+
+## Search and Return fix — 2026-11-09
+
+Reproduced the reported `fleet say hi` input in the installed native Raycast command. Fleet and Goji were configured, but native search filtered out every row. The unconditional empty view falsely said **No Bots configured**. Return ran **Reload Bots**, leaving the same empty search.
+
+The updated command recognizes an exact configured alias followed by message text. Native verification showed a Fleet row with **Review typed message, then send**; Return opened Fleet’s composer with `say hi` filled in. It did not submit. The composer displays **Send to Fleet — ⌘↵**. Back cleared the search. An unmatched search displayed **No matching Bots or deliveries** and Return on **Clear Search** restored Fleet, Goji and history. Alias-only `goji` still used native filtering and opened Goji’s composer with its empty-field placeholder.
+
+No message was sent during this fix’s verification. Sender/configuration, credentials, receipt journaling and the single-submit guard are unchanged. The new query text remains transient and is cleared when the composer opens. The focused query regressions reject unknown aliases and alias prefixes, preserve message punctuation/newlines, and cover case-insensitive aliases. A regression failed with the old search-only behavior. `npm run check` passed on Linux and the Mac: **14 tests passed, 0 failed**, type checking, lint, formatting and native compilation green. Independent Sol review approved with no findings.
+
+Native screenshots and verification logs are local under `evidence/query-*` on the Mac. The composer screenshot is also copied to this checkout’s `evidence/query-after-compose.png`. Desktop automation used background input in the scoped Raycast window; Raycast’s floating main window is layer 8 and is absent from the driver’s layer-0 window list.

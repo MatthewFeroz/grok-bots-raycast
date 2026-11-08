@@ -19,6 +19,7 @@ import { join } from "node:path";
 import { useEffect, useRef, useState } from "react";
 import { deliver, loadHistory, saveReceipt, Storage } from "./history";
 import { Bot, createRequest, Receipt, Sender, validateMessage } from "./sender";
+import { parseComposeQuery } from "./compose-query";
 
 async function openBot() {
   try {
@@ -181,17 +182,21 @@ function ReceiptView({
 function Compose({
   bots,
   initialBot,
+  initialMessage = "",
   onUpdate,
 }: {
   bots: Bot[];
   initialBot: Bot;
+  initialMessage?: string;
   onUpdate: () => Promise<void>;
 }) {
   const sending = useRef(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
   const [botAlias, setBotAlias] = useState(initialBot.alias);
-  const [messageBytes, setMessageBytes] = useState(0);
+  const [messageBytes, setMessageBytes] = useState(
+    Buffer.byteLength(initialMessage, "utf8"),
+  );
   const [result, setResult] = useState<Receipt>();
   const selectedBot = bots.find((bot) => bot.alias === botAlias) ?? initialBot;
 
@@ -262,6 +267,7 @@ function Compose({
         id="message"
         title="Message"
         placeholder={`What would you like to tell ${selectedBot.name}?`}
+        defaultValue={initialMessage}
         autoFocus
         storeValue={false}
         error={error}
@@ -294,6 +300,8 @@ export default function Command() {
   const [busy, setBusy] = useState(true);
   const [error, setError] = useState<string>();
   const [selectedId, setSelectedId] = useState<string>();
+  const [searchText, setSearchText] = useState("");
+  const draft = parseComposeQuery(searchText, bots);
   const reloadHistory = async () => setHistory(await loadHistory(storage));
   async function load() {
     setBusy(true);
@@ -395,8 +403,14 @@ export default function Command() {
     <List
       isLoading={busy}
       navigationTitle="Grok Bots"
-      searchBarPlaceholder="Message a Bot or find a delivery…"
-      selectedItemId={selectedId}
+      searchBarPlaceholder="Choose a Bot, or type fleet <message>…"
+      searchText={searchText}
+      onSearchTextChange={(text) => {
+        setSearchText(text);
+        setSelectedId(undefined);
+      }}
+      filtering={!draft}
+      selectedItemId={draft ? `bot-${draft.bot.alias}` : selectedId}
       onSelectionChange={(id) => setSelectedId(id ?? undefined)}
     >
       {error && (
@@ -430,17 +444,20 @@ export default function Command() {
         </List.Section>
       )}
       <List.Section title="Needs attention">
-        {history
-          .filter((receipt) => receipt.status !== "accepted")
-          .map(receiptRow)}
+        {!draft &&
+          history
+            .filter((receipt) => receipt.status !== "accepted")
+            .map(receiptRow)}
       </List.Section>
       <List.Section title="Message a Bot">
-        {bots.map((bot) => (
+        {(draft ? [draft.bot] : bots).map((bot) => (
           <List.Item
             id={`bot-${bot.alias}`}
             key={bot.alias}
             title={bot.name}
-            subtitle="Write a message"
+            subtitle={
+              draft ? "Review typed message, then send" : "Write a message"
+            }
             keywords={[bot.alias, "new", "compose", "send"]}
             icon={{ source: Icon.Message, tintColor: Color.Blue }}
             actions={
@@ -448,15 +465,17 @@ export default function Command() {
                 <Action
                   title={`Message ${bot.name}`}
                   icon={Icon.Pencil}
-                  onAction={() =>
+                  onAction={() => {
                     push(
                       <Compose
                         bots={bots}
                         initialBot={bot}
+                        initialMessage={draft?.message}
                         onUpdate={reloadHistory}
                       />,
-                    )
-                  }
+                    );
+                    setSearchText("");
+                  }}
                 />
                 <Action
                   title="Open Grok Bot"
@@ -478,21 +497,30 @@ export default function Command() {
         title="Recent deliveries"
         subtitle="Message text isn’t saved"
       >
-        {history
-          .filter((receipt) => receipt.status === "accepted")
-          .map(receiptRow)}
+        {!draft &&
+          history
+            .filter((receipt) => receipt.status === "accepted")
+            .map(receiptRow)}
       </List.Section>
       {!busy && !error && (
         <List.EmptyView
-          title="No Bots configured"
-          description="Add a Bot privately with grok-bots in your terminal, then reload."
+          title={
+            bots.length === 0 && history.length === 0
+              ? "No Bots configured"
+              : "No matching Bots or deliveries"
+          }
+          description={
+            bots.length === 0 && history.length === 0
+              ? "Add a Bot privately with grok-bots in your terminal, then reload."
+              : "Clear your search to choose a Bot, or type a configured alias followed by your message."
+          }
           icon={Icon.Message}
           actions={
             <ActionPanel>
               <Action
-                title="Reload Bots"
+                title={searchText ? "Clear Search" : "Reload Bots"}
                 icon={Icon.ArrowClockwise}
-                onAction={load}
+                onAction={searchText ? () => setSearchText("") : load}
               />
             </ActionPanel>
           }
