@@ -148,10 +148,14 @@ function Compose({
   initialBot: Bot;
   onUpdate: () => Promise<void>;
 }) {
-  const { push } = useNavigation();
   const sending = useRef(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
+  const [botAlias, setBotAlias] = useState(initialBot.alias);
+  const [messageBytes, setMessageBytes] = useState(0);
+  const [result, setResult] = useState<Receipt>();
+  const selectedBot = bots.find((bot) => bot.alias === botAlias) ?? initialBot;
+
   async function submit(values: { bot: string; message: string }) {
     if (sending.current) return;
     const problem = validateMessage(values.message);
@@ -170,38 +174,41 @@ function Compose({
         values.message,
         (request, message) => sender.send(request, message),
       );
-      await onUpdate();
-      // This form stays locked after a send. Back cannot accidentally send it twice.
-      push(<ReceiptView initial={receipt} onUpdate={onUpdate} />);
+      // Replace the form with its result. Back returns straight to the Bot list.
+      // A summary reload must never hide the receipt or leave a spent form.
+      setResult(receipt);
     } catch {
-      await showToast({
-        style: Toast.Style.Failure,
-        title: "Send stopped — inspect history",
-        message: `Request ${pending.requestId}. Check its receipt before another message.`,
-      });
+      // Keep the original ID visible even if the journal could not be read.
+      setResult(pending);
     } finally {
       setBusy(false);
+      await onUpdate().catch(() => {});
     }
   }
+
+  if (result) return <ReceiptView initial={result} onUpdate={onUpdate} />;
   return (
     <Form
-      navigationTitle="Message Grok Bot"
+      navigationTitle={`Message ${selectedBot.name}`}
       isLoading={busy}
+      enableDrafts={false}
       actions={
         <ActionPanel>
           <Action.SubmitForm
-            title="Send Message Once"
+            title={busy ? "Sending…" : `Send to ${selectedBot.name}`}
             icon={Icon.ArrowUp}
             onSubmit={submit}
           />
         </ActionPanel>
       }
     >
-      <Form.Description
-        title="Private Mac sender"
-        text="Send to an existing hosted Bot. Credentials stay in the Mac sender. A delivery receipt is not the Bot’s answer."
-      />
-      <Form.Dropdown id="bot" title="Bot" defaultValue={initialBot.alias}>
+      <Form.Dropdown
+        id="bot"
+        title="To"
+        value={botAlias}
+        onChange={setBotAlias}
+        storeValue={false}
+      >
         {bots.map((bot) => (
           <Form.Dropdown.Item
             key={bot.alias}
@@ -214,14 +221,27 @@ function Compose({
       <Form.TextArea
         id="message"
         title="Message"
-        placeholder="What would you like to tell your Bot?"
+        placeholder={`What would you like to tell ${selectedBot.name}?`}
+        autoFocus
+        storeValue={false}
         error={error}
-        onChange={() => setError(undefined)}
+        onChange={(value) => {
+          setError(undefined);
+          setMessageBytes(Buffer.byteLength(value, "utf8"));
+        }}
       />
-      <Form.Separator />
+      {messageBytes > 28_000 && (
+        <Form.Description
+          title="Length"
+          text={`${messageBytes.toLocaleString()} / 32,000 bytes`}
+        />
+      )}
       <Form.Description
-        title="Send once"
-        text="No automatic retries. If delivery is unknown, keep the request ID and check Grok Bot before sending again."
+        text={
+          busy
+            ? `Sending to ${selectedBot.name}… Please wait for the delivery receipt.`
+            : "Messages aren’t saved. Replies appear in Grok Bot."
+        }
       />
     </Form>
   );
