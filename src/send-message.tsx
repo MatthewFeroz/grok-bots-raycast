@@ -12,6 +12,7 @@ import {
   open,
   showToast,
   useNavigation,
+  Keyboard,
 } from "@raycast/api";
 import { homedir } from "node:os";
 import { join } from "node:path";
@@ -76,7 +77,7 @@ function ReceiptView({
   const { pop } = useNavigation();
   const [receipt, setReceipt] = useState(initial);
   const [busy, setBusy] = useState(false);
-  const [details, setDetails] = useState(false);
+  const [details, setDetails] = useState(initial.status === "unknown");
   const refreshing = useRef(false);
   const state = states[receipt.status];
   const name =
@@ -130,7 +131,7 @@ function ReceiptView({
               timeStyle: "short",
             })}
           />
-          <Detail.Metadata.Label title="Reply" text="In Grok Bot" />
+          <Detail.Metadata.Label title="Conversation" text="Grok Bot" />
         </Detail.Metadata>
       }
       actions={
@@ -144,7 +145,7 @@ function ReceiptView({
             <Action
               title={busy ? "Checking Receipt…" : "Check Delivery Receipt"}
               icon={Icon.ArrowClockwise}
-              shortcut={{ modifiers: ["cmd"], key: "r" }}
+              shortcut={Keyboard.Shortcut.Common.Refresh}
               onAction={refresh}
             />
           </ActionPanel.Section>
@@ -160,14 +161,14 @@ function ReceiptView({
             <Action.CopyToClipboard
               title="Copy Request ID"
               content={receipt.requestId}
-              shortcut={{ modifiers: ["cmd", "shift"], key: "c" }}
+              shortcut={Keyboard.Shortcut.Common.Copy}
             />
           </ActionPanel.Section>
           <ActionPanel.Section>
             <Action
               title="Back to Bots"
               icon={Icon.ArrowLeft}
-              shortcut={{ modifiers: ["cmd"], key: "n" }}
+              shortcut={Keyboard.Shortcut.Common.New}
               onAction={pop}
             />
           </ActionPanel.Section>
@@ -382,7 +383,7 @@ export default function Command() {
             <Action
               title="Reload Bots and History"
               icon={Icon.ArrowClockwise}
-              shortcut={{ modifiers: ["cmd"], key: "r" }}
+              shortcut={Keyboard.Shortcut.Common.Refresh}
               onAction={load}
             />
           </ActionPanel>
@@ -465,7 +466,7 @@ export default function Command() {
                 <Action
                   title="Reload Bots and History"
                   icon={Icon.ArrowClockwise}
-                  shortcut={{ modifiers: ["cmd"], key: "r" }}
+                  shortcut={Keyboard.Shortcut.Common.Refresh}
                   onAction={load}
                 />
               </ActionPanel>
