@@ -12,6 +12,7 @@ import {
   open,
   showToast,
   useNavigation,
+  Keyboard,
 } from "@raycast/api";
 import { homedir } from "node:os";
 import { join } from "node:path";
@@ -39,100 +40,138 @@ const storage: Storage = {
 };
 const states = {
   accepted: {
-    title: "Delivery accepted",
+    title: "Message accepted",
+    label: "Accepted",
     color: Color.Green,
     icon: Icon.CheckCircle,
-    text: "The webhook accepted your message. This is a delivery receipt. Read the Bot’s answer in its Grok Bot conversation.",
+    text: "Your message was accepted for delivery. The Bot may still be processing it.",
+    next: "Open Grok Bot to read the reply.",
   },
   rejected: {
-    title: "Delivery rejected",
+    title: "Message rejected",
+    label: "Rejected",
     color: Color.Red,
     icon: Icon.XMarkCircle,
-    text: "The webhook rejected this request. Check the existing sender setup in your terminal. No automatic retry was made.",
+    text: "The webhook rejected this message. No automatic retry was made.",
+    next: "Check this Bot’s routine in Grok Bot and the existing sender setup in your terminal before composing a new message.",
   },
   unknown: {
-    title: "Delivery unknown",
+    title: "Check before sending again",
+    label: "Unknown",
     color: Color.Orange,
     icon: Icon.QuestionMarkCircle,
-    text: "The sender may have delivered this message. Keep this request ID and check the actual Bot conversation before composing another message. Refresh only checks the receipt; it never resends.",
+    text: "This message may have arrived, but delivery couldn’t be confirmed.",
+    next: "Check the Bot’s conversation first. Keep this request ID and check its receipt without resending.",
   },
 };
 
 function ReceiptView({
   initial,
+  bots,
   onUpdate,
 }: {
   initial: Receipt;
+  bots: Bot[];
   onUpdate: () => Promise<void>;
 }) {
+  const { pop } = useNavigation();
   const [receipt, setReceipt] = useState(initial);
   const [busy, setBusy] = useState(false);
+  const [details, setDetails] = useState(initial.status === "unknown");
+  const refreshing = useRef(false);
   const state = states[receipt.status];
+  const name =
+    bots.find((bot) => bot.alias === receipt.bot)?.name ?? receipt.bot;
   async function refresh() {
+    if (refreshing.current) return;
+    refreshing.current = true;
     setBusy(true);
     try {
       const next = await sender.status(receipt);
       await saveReceipt(storage, next);
       setReceipt(next);
-      await onUpdate();
+      await onUpdate().catch(() => {});
       await showToast({
         style: Toast.Style.Success,
         title: "Receipt checked",
-        message: "No message was sent.",
+        message: "No message was resent.",
       });
     } catch {
       await showToast({
         style: Toast.Style.Failure,
         title: "Receipt unavailable",
-        message: "Last known state kept. No message was resent.",
+        message:
+          "Last known state kept. Check the Bot’s conversation before resending.",
       });
     } finally {
+      refreshing.current = false;
       setBusy(false);
     }
   }
   return (
     <Detail
-      navigationTitle="Delivery receipt"
+      navigationTitle={`${name} · ${state.label}`}
       isLoading={busy}
-      markdown={`# ${state.title}\n\n${state.text}\n\n---\n\n**Request ID**\n\n\`${receipt.requestId}\`\n\nCredentials and message text are not stored in this extension’s history.`}
+      markdown={`# ${state.title}\n\n${state.text}\n\n${state.next}${details ? `\n\n---\n\n**Request ID**\n\n\`${receipt.requestId}\`\n\n${receipt.httpStatus ? `HTTP ${receipt.httpStatus} · ` : ""}This is a delivery receipt, not the Bot’s answer.` : ""}`}
       metadata={
         <Detail.Metadata>
+          <Detail.Metadata.Label title="To" text={name} icon={Icon.Message} />
           <Detail.Metadata.TagList title="Delivery">
             <Detail.Metadata.TagList.Item
-              text={receipt.status}
+              text={state.label}
               color={state.color}
+              icon={state.icon}
             />
           </Detail.Metadata.TagList>
-          <Detail.Metadata.Label title="Bot" text={receipt.bot} />
+          <Detail.Metadata.Separator />
           <Detail.Metadata.Label
-            title="Created"
-            text={new Date(receipt.createdAt).toLocaleString()}
+            title="Submitted"
+            text={new Date(receipt.createdAt).toLocaleString(undefined, {
+              dateStyle: "medium",
+              timeStyle: "short",
+            })}
           />
-          {receipt.httpStatus && (
-            <Detail.Metadata.Label
-              title="HTTP"
-              text={String(receipt.httpStatus)}
-            />
-          )}
-          <Detail.Metadata.Label title="Bot answer" text="Read in Grok Bot" />
+          <Detail.Metadata.Label title="Conversation" text="Grok Bot" />
         </Detail.Metadata>
       }
       actions={
         <ActionPanel>
-          <Action
-            title="Refresh Delivery Receipt"
-            icon={Icon.ArrowClockwise}
-            onAction={refresh}
-          />
-          <Action
-            title="Open Grok Bot"
-            icon={Icon.Message}
-            onAction={openBot}
-          />
-          <Action.CopyToClipboard
-            title="Copy Request ID"
-            content={receipt.requestId}
-          />
+          <ActionPanel.Section>
+            <Action
+              title="Open Grok Bot"
+              icon={Icon.Message}
+              onAction={openBot}
+            />
+            <Action
+              title={busy ? "Checking Receipt…" : "Check Delivery Receipt"}
+              icon={Icon.ArrowClockwise}
+              shortcut={Keyboard.Shortcut.Common.Refresh}
+              onAction={refresh}
+            />
+          </ActionPanel.Section>
+          <ActionPanel.Section title="Receipt">
+            <Action
+              title={
+                details ? "Hide Delivery Details" : "Show Delivery Details"
+              }
+              icon={Icon.Info}
+              shortcut={{ modifiers: ["cmd"], key: "d" }}
+              onAction={() => setDetails(!details)}
+            />
+            <Action.CopyToClipboard
+              title="Copy Request ID"
+              content={receipt.requestId}
+              shortcut={Keyboard.Shortcut.Common.Copy}
+            />
+          </ActionPanel.Section>
+          <ActionPanel.Section>
+            <Action
+              title="Back to Bots"
+              icon={Icon.ArrowLeft}
+              shortcut={Keyboard.Shortcut.Common.New}
+              onAction={pop}
+            />
+          </ActionPanel.Section>
         </ActionPanel>
       }
     />
@@ -141,15 +180,21 @@ function ReceiptView({
 
 function Compose({
   bots,
+  initialBot,
   onUpdate,
 }: {
   bots: Bot[];
+  initialBot: Bot;
   onUpdate: () => Promise<void>;
 }) {
-  const { push } = useNavigation();
   const sending = useRef(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
+  const [botAlias, setBotAlias] = useState(initialBot.alias);
+  const [messageBytes, setMessageBytes] = useState(0);
+  const [result, setResult] = useState<Receipt>();
+  const selectedBot = bots.find((bot) => bot.alias === botAlias) ?? initialBot;
+
   async function submit(values: { bot: string; message: string }) {
     if (sending.current) return;
     const problem = validateMessage(values.message);
@@ -168,38 +213,42 @@ function Compose({
         values.message,
         (request, message) => sender.send(request, message),
       );
-      await onUpdate();
-      // This form stays locked after a send. Back cannot accidentally send it twice.
-      push(<ReceiptView initial={receipt} onUpdate={onUpdate} />);
+      // Replace the form with its result. Back returns straight to the Bot list.
+      // A summary reload must never hide the receipt or leave a spent form.
+      setResult(receipt);
     } catch {
-      await showToast({
-        style: Toast.Style.Failure,
-        title: "Send stopped — inspect history",
-        message: `Request ${pending.requestId}. Check its receipt before another message.`,
-      });
+      // Keep the original ID visible even if the journal could not be read.
+      setResult(pending);
     } finally {
       setBusy(false);
+      await onUpdate().catch(() => {});
     }
   }
+
+  if (result)
+    return <ReceiptView initial={result} bots={bots} onUpdate={onUpdate} />;
   return (
     <Form
-      navigationTitle="Message Grok Bot"
+      navigationTitle={`Message ${selectedBot.name}`}
       isLoading={busy}
+      enableDrafts={false}
       actions={
         <ActionPanel>
           <Action.SubmitForm
-            title="Send Message Once"
+            title={busy ? "Sending…" : `Send to ${selectedBot.name}`}
             icon={Icon.ArrowUp}
             onSubmit={submit}
           />
         </ActionPanel>
       }
     >
-      <Form.Description
-        title="Private Mac sender"
-        text="Send to an existing hosted Bot. Credentials stay in the Mac sender. A delivery receipt is not the Bot’s answer."
-      />
-      <Form.Dropdown id="bot" title="Bot" defaultValue={bots[0]?.alias}>
+      <Form.Dropdown
+        id="bot"
+        title="To"
+        value={botAlias}
+        onChange={setBotAlias}
+        storeValue={false}
+      >
         {bots.map((bot) => (
           <Form.Dropdown.Item
             key={bot.alias}
@@ -212,14 +261,27 @@ function Compose({
       <Form.TextArea
         id="message"
         title="Message"
-        placeholder="What would you like to tell your Bot?"
+        placeholder={`What would you like to tell ${selectedBot.name}?`}
+        autoFocus
+        storeValue={false}
         error={error}
-        onChange={() => setError(undefined)}
+        onChange={(value) => {
+          setError(undefined);
+          setMessageBytes(Buffer.byteLength(value, "utf8"));
+        }}
       />
-      <Form.Separator />
+      {messageBytes > 28_000 && (
+        <Form.Description
+          title="Length"
+          text={`${messageBytes.toLocaleString()} / 32,000 bytes`}
+        />
+      )}
       <Form.Description
-        title="Send once"
-        text="No automatic retries. If delivery is unknown, keep the request ID and check Grok Bot before sending again."
+        text={
+          busy
+            ? `Sending to ${selectedBot.name}… Please wait for the delivery receipt.`
+            : "Messages aren’t saved. Replies appear in Grok Bot."
+        }
       />
     </Form>
   );
@@ -231,17 +293,26 @@ export default function Command() {
   const [history, setHistory] = useState<Receipt[]>([]);
   const [busy, setBusy] = useState(true);
   const [error, setError] = useState<string>();
+  const [selectedId, setSelectedId] = useState<string>();
   const reloadHistory = async () => setHistory(await loadHistory(storage));
   async function load() {
     setBusy(true);
     setError(undefined);
     try {
-      await reloadHistory();
-      setBots(await sender.list());
+      const receipts = await loadHistory(storage);
+      setHistory(receipts);
+      const configured = await sender.list();
+      setBots(configured);
+      const attention = receipts.find(
+        (receipt) => receipt.status !== "accepted",
+      );
+      setSelectedId(
+        attention?.requestId ?? (configured[0] && `bot-${configured[0].alias}`),
+      );
     } catch {
       setBots([]);
       setError(
-        "Check the existing Mac sender and delivery history in your terminal. Private diagnostics are hidden.",
+        "Check ~/.local/bin/grok-bots and delivery history in your terminal, then reload. Private diagnostics stay hidden.",
       );
     } finally {
       setBusy(false);
@@ -250,90 +321,178 @@ export default function Command() {
   useEffect(() => {
     void load();
   }, []);
+
+  function receiptRow(receipt: Receipt) {
+    const state = states[receipt.status];
+    const name =
+      bots.find((bot) => bot.alias === receipt.bot)?.name ?? receipt.bot;
+    const label = {
+      accepted: "Accepted",
+      rejected: "Rejected",
+      unknown: "Unknown",
+    }[receipt.status];
+    return (
+      <List.Item
+        id={receipt.requestId}
+        key={receipt.requestId}
+        title={name}
+        subtitle={
+          receipt.status === "unknown"
+            ? "Check conversation before resending"
+            : undefined
+        }
+        keywords={[
+          receipt.requestId,
+          receipt.bot,
+          receipt.status,
+          "receipt",
+          "history",
+        ]}
+        icon={{ source: state.icon, tintColor: state.color }}
+        accessories={[
+          { tag: { value: label, color: state.color } },
+          {
+            date: new Date(receipt.createdAt),
+            tooltip: `${new Date(receipt.createdAt).toLocaleString()} · ${receipt.requestId}`,
+          },
+        ]}
+        actions={
+          <ActionPanel>
+            <Action
+              title="View Delivery"
+              icon={Icon.Document}
+              onAction={() =>
+                push(
+                  <ReceiptView
+                    initial={receipt}
+                    bots={bots}
+                    onUpdate={reloadHistory}
+                  />,
+                )
+              }
+            />
+            <Action
+              title="Open Grok Bot"
+              icon={Icon.Message}
+              onAction={openBot}
+            />
+            <Action.CopyToClipboard
+              title="Copy Request ID"
+              content={receipt.requestId}
+            />
+            <Action
+              title="Reload Bots and History"
+              icon={Icon.ArrowClockwise}
+              shortcut={Keyboard.Shortcut.Common.Refresh}
+              onAction={load}
+            />
+          </ActionPanel>
+        }
+      />
+    );
+  }
   return (
     <List
       isLoading={busy}
       navigationTitle="Grok Bots"
-      searchBarPlaceholder="Find a Bot or delivery receipt…"
+      searchBarPlaceholder="Message a Bot or find a delivery…"
+      selectedItemId={selectedId}
+      onSelectionChange={(id) => setSelectedId(id ?? undefined)}
     >
-      <List.Section
-        title="Compose"
-        subtitle="Existing hosted Bots · private Mac sender"
-      >
-        {bots.length > 0 && (
+      {error && (
+        <List.Section title="Connection">
           <List.Item
-            title="New Message"
-            subtitle={bots.map((bot) => bot.name).join(" · ")}
-            icon={{ source: Icon.ArrowUp, tintColor: Color.Blue }}
+            id="sender-error"
+            title="Sender unavailable"
+            subtitle="Reload to reconnect"
+            icon={{ source: Icon.ExclamationMark, tintColor: Color.Orange }}
             actions={
               <ActionPanel>
                 <Action
-                  title="Compose Message"
-                  onAction={() =>
-                    push(<Compose bots={bots} onUpdate={reloadHistory} />)
-                  }
-                />
-                <Action
-                  title="Reload Bots"
+                  title="Reload Bots and History"
                   icon={Icon.ArrowClockwise}
                   onAction={load}
+                />
+                <Action
+                  title="Show Setup Help"
+                  icon={Icon.Info}
+                  onAction={() =>
+                    push(
+                      <Detail
+                        markdown={`# Check the Mac sender\n\n${error}`}
+                      />,
+                    )
+                  }
                 />
               </ActionPanel>
             }
           />
-        )}
+        </List.Section>
+      )}
+      <List.Section title="Needs attention">
+        {history
+          .filter((receipt) => receipt.status !== "accepted")
+          .map(receiptRow)}
       </List.Section>
-      <List.Section
-        title="Delivery history"
-        subtitle="Receipts only · answers appear in Grok Bot"
-      >
-        {history.map((receipt) => (
+      <List.Section title="Message a Bot">
+        {bots.map((bot) => (
           <List.Item
-            key={receipt.requestId}
-            title={states[receipt.status].title}
-            subtitle={receipt.bot}
-            keywords={[receipt.requestId]}
-            icon={{
-              source: states[receipt.status].icon,
-              tintColor: states[receipt.status].color,
-            }}
-            accessories={[{ date: new Date(receipt.createdAt) }]}
+            id={`bot-${bot.alias}`}
+            key={bot.alias}
+            title={bot.name}
+            subtitle="Write a message"
+            keywords={[bot.alias, "new", "compose", "send"]}
+            icon={{ source: Icon.Message, tintColor: Color.Blue }}
             actions={
               <ActionPanel>
                 <Action
-                  title="Inspect Receipt"
+                  title={`Message ${bot.name}`}
+                  icon={Icon.Pencil}
                   onAction={() =>
                     push(
-                      <ReceiptView
-                        initial={receipt}
+                      <Compose
+                        bots={bots}
+                        initialBot={bot}
                         onUpdate={reloadHistory}
                       />,
                     )
                   }
                 />
-                <Action.CopyToClipboard
-                  title="Copy Request ID"
-                  content={receipt.requestId}
+                <Action
+                  title="Open Grok Bot"
+                  icon={Icon.Message}
+                  onAction={openBot}
+                />
+                <Action
+                  title="Reload Bots and History"
+                  icon={Icon.ArrowClockwise}
+                  shortcut={Keyboard.Shortcut.Common.Refresh}
+                  onAction={load}
                 />
               </ActionPanel>
             }
           />
         ))}
       </List.Section>
-      {bots.length === 0 && (
+      <List.Section
+        title="Recent deliveries"
+        subtitle="Message text isn’t saved"
+      >
+        {history
+          .filter((receipt) => receipt.status === "accepted")
+          .map(receiptRow)}
+      </List.Section>
+      {!busy && !error && (
         <List.EmptyView
-          title={error ? "Mac sender unavailable" : "No Bots configured"}
-          description={
-            error ??
-            "Configure aliases privately with grok-bots in your terminal, then reload."
-          }
+          title="No Bots configured"
+          description="Add a Bot privately with grok-bots in your terminal, then reload."
           icon={Icon.Message}
           actions={
             <ActionPanel>
               <Action
-                title="Reload"
-                onAction={load}
+                title="Reload Bots"
                 icon={Icon.ArrowClockwise}
+                onAction={load}
               />
             </ActionPanel>
           }

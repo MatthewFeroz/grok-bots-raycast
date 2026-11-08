@@ -6,13 +6,13 @@ A native Raycast extension for Alex’s existing hosted Grok Bots. Select a conf
 
 ## Use on the Mac
 
-Open Raycast and run **Message Grok Bot**, then **New Message**. Choose Fleet or Goji from the live sender list. **Send Message Once** sends your message. The receipt offers **Refresh Delivery Receipt**, **Open Grok Bot**, and **Copy Request ID**. Refresh never transmits a message.
+Open Raycast and run **Message Grok Bot**. Choose **Fleet** or **Goji** directly from the live Bot list; the composer opens with that recipient selected and the message field focused. Use **Send to Fleet** (or the selected Bot) to send. The receipt’s primary action opens **Grok Bot** to read the answer. **Check Delivery Receipt** only reads the receipt; it never resends. **Show Delivery Details** reveals the request ID and HTTP status, and **Copy Request ID** copies the ID. Native Actions also provide Refresh, Copy and Back to Bots shortcuts.
 
 - **Accepted:** the webhook accepted the message; the Bot has not necessarily answered.
 - **Rejected:** a definitive webhook rejection. Check the sender setup privately.
 - **Unknown:** the sender may have delivered it. Keep the ID and inspect the Bot conversation before composing another message. Never change an uncertain request ID to bypass duplicate protection.
 
-History contains this extension’s request IDs, aliases, timestamps, delivery states and optional HTTP status codes. It contains no message bodies. A send form remains locked after submission; return to the command’s list to compose a new message deliberately. An interrupted extension retains its pending ID in history. Refresh an unknown receipt there after restarting.
+History contains this extension’s request IDs, aliases, timestamps, delivery states and optional HTTP status codes. It contains no message bodies. Unknown and rejected deliveries appear in **Needs attention**; accepted deliveries stay in chronological order under **Recent deliveries**, even after refreshing older receipts. Unknown receipts show their request ID immediately. Submitting replaces the composer with its receipt, so Back returns straight to the Bot list. A submitted form can transmit only once. An interrupted extension retains its pending ID in history. Check an unknown receipt there after restarting.
 
 ## Install or update
 

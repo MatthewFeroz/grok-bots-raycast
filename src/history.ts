@@ -16,7 +16,9 @@ export async function loadHistory(storage: Storage): Promise<Receipt[]> {
   const receipts = rows.map((row) => readReceipt(row));
   if (receipts.some((row) => !row))
     throw new Error("Cannot read delivery history.");
-  return receipts as Receipt[];
+  return (receipts as Receipt[]).sort(
+    (a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt),
+  );
 }
 
 export function saveReceipt(storage: Storage, receipt: Receipt): Promise<void> {
