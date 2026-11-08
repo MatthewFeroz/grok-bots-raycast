@@ -1,0 +1,44 @@
+{
+  "$schema": "https://www.raycast.com/schemas/extension.json",
+  "name": "grok-bots",
+  "title": "Grok Bots",
+  "description": "Send messages to your existing hosted Grok Bots through the private Mac sender.",
+  "icon": "icon.png",
+  "author": "saphid",
+  "license": "MIT",
+  "platforms": [
+    "macOS"
+  ],
+  "categories": [
+    "Communication",
+    "Productivity"
+  ],
+  "commands": [
+    {
+      "name": "send-message",
+      "title": "Message Grok Bot",
+      "description": "Compose a message and inspect delivery receipts",
+      "mode": "view"
+    }
+  ],
+  "scripts": {
+    "dev": "ray develop",
+    "build": "ray build",
+    "lint": "eslint src test && prettier --check src test",
+    "typecheck": "tsc --noEmit",
+    "test": "tsx --test test/*.test.ts",
+    "check": "npm run typecheck && npm test && npm run lint && npm run build"
+  },
+  "dependencies": {
+    "@raycast/api": "2.11.1"
+  },
+  "devDependencies": {
+    "@raycast/eslint-config": "^2.2.0",
+    "@types/node": "^22.0.0",
+    "@types/react": "^19.0.0",
+    "eslint": "^9.0.0",
+    "prettier": "^3.0.0",
+    "tsx": "^4.0.0",
+    "typescript": "~5.9.3"
+  }
+}
