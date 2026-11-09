@@ -6,3 +6,8 @@ raycast-env.d.ts
 evidence/
 *.mp4
 *.mov
+.env
+.env.*
+!.env.example
+.gstack/
+*.log

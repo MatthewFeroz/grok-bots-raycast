@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="400" viewBox="0 0 1280 400" fill="none" role="img" aria-labelledby="title desc">
+  <title id="title">Grok Bots for Raycast</title>
+  <desc id="desc">A shortcut to your Bots. Private setup. Explicit sends. Clear receipts.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1280" y2="400" gradientUnits="userSpaceOnUse"><stop stop-color="#0B1220"/><stop offset="1" stop-color="#122C38"/></linearGradient>
+    <linearGradient id="accent" x1="908" y1="77" x2="1116" y2="310" gradientUnits="userSpaceOnUse"><stop stop-color="#22D3EE"/><stop offset="1" stop-color="#0891B2"/></linearGradient>
+  </defs>
+  <rect width="1280" height="400" rx="24" fill="url(#bg)"/>
+  <path d="M842 0v400M906 0v400M970 0v400M1034 0v400M1098 0v400M1162 0v400M1226 0v400M810 64h470M810 128h470M810 192h470M810 256h470M810 320h470" stroke="#94A3B8" stroke-opacity=".06"/>
+  <rect x="64" y="62" width="112" height="32" rx="16" fill="#22D3EE" fill-opacity=".12"/>
+  <text x="120" y="83" text-anchor="middle" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif" font-size="13" font-weight="600" letter-spacing="1.4" fill="#67E8F9">RAYCAST</text>
+  <text x="64" y="165" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif" font-size="58" font-weight="700" letter-spacing="-2" fill="#F8FAFC">Grok Bots</text>
+  <text x="64" y="217" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif" font-size="30" fill="#CBD5E1">A shortcut to your Bots.</text>
+  <text x="64" y="292" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif" font-size="18" fill="#94A3B8">Private setup. Explicit sends. Clear receipts.</text>
+  <rect x="912" y="81" width="208" height="208" rx="50" fill="url(#accent)"/>
+  <path d="M967 143h98a15 15 0 0 1 15 15v55a15 15 0 0 1-15 15h-57l-27 23v-23h-14a15 15 0 0 1-15-15v-55a15 15 0 0 1 15-15Z" stroke="white" stroke-width="8" stroke-linejoin="round"/>
+  <path d="m993 185 16 16 33-34" stroke="white" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+  <rect x="986" y="314" width="60" height="35" rx="8" stroke="#486472"/>
+  <text x="1016" y="337" text-anchor="middle" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif" font-size="20" fill="#CBD5E1">⌘ ↵</text>
+</svg>
