@@ -1,52 +1,89 @@
-<img src="assets/icon.png" width="64" height="64" alt="">
+<p align="center">
+  <img src="docs/images/banner.svg" alt="Grok Bots for Raycast — a shortcut to your Bots" width="100%">
+</p>
+<p align="center">
+  <a href="https://github.com/saphid/grok-bots-raycast/actions/workflows/check.yml"><img src="https://github.com/saphid/grok-bots-raycast/actions/workflows/check.yml/badge.svg" alt="Checks"></a>
+  <img src="https://img.shields.io/badge/macOS-Raycast-111827?logo=apple&logoColor=white" alt="macOS · Raycast">
+  <img src="https://img.shields.io/badge/Node.js-24.11%2B-43853d?logo=node.js&logoColor=white" alt="Node.js 24.11 or newer">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-0891b2" alt="MIT license"></a>
+</p>
 
-# Grok Bots for Raycast
+Message your existing **Grok Bots** without leaving your keyboard. Choose a Bot, write a message, and get a clear delivery receipt. Read its reply in the Grok Bot app.
 
-A native Raycast extension for Alex’s existing hosted Grok Bots. Select a configured Bot, compose a message, send once, and inspect the delivery receipt. Read the actual answer in **Grok Bot**.
+- **Quick to compose.** Type `fleet say hi` → Return to review → ⌘Return to send.
+- **Credentials stay local.** Hidden setup prompts; no keys in Raycast preferences, message arguments, or the repository.
+- **Send once.** A saved request ID, explicit submit, and no automatic retries.
+- **Useful history.** Delivery states and timestamps, without saving message text.
 
-## Use on the Mac
+<p align="center">
+  <img src="docs/images/compose.png" alt="The native Raycast composer with Fleet selected and say hi ready to review" width="780">
+  <br><sub>Native Raycast UI. Opening a draft does not send it.</sub>
+</p>
 
-Open Raycast and run **Message Grok Bot**. Choose **Fleet** or **Goji** directly from the live Bot list; the composer opens with that recipient selected and the message field focused. Use **Send to Fleet** (or the selected Bot) to send. The receipt’s primary action opens **Grok Bot** to read the answer. **Check Delivery Receipt** only reads the receipt; it never resends. **Show Delivery Details** reveals the request ID and HTTP status, and **Copy Request ID** copies the ID. Native Actions also provide Refresh, Copy and Back to Bots shortcuts.
+## Get started
 
-You can also type `fleet say hi` in the Bot list. Press Return to open Fleet’s composer with `say hi` filled in, review it, then use **Send to Fleet**. Typing and opening a draft never sends it. An unmatched search shows **No matching Bots or deliveries** with **Clear Search**, rather than claiming your configured Bots are missing.
+You need **macOS**, [Raycast](https://www.raycast.com/), [Node.js 24.11+](https://nodejs.org/en/download), and a Grok Bot with a webhook routine. This integration uses your hosted Bot, not an xAI inference API key.
 
-- **Accepted:** the webhook accepted the message; the Bot has not necessarily answered.
-- **Rejected:** a definitive webhook rejection. Check the sender setup privately.
-- **Unknown:** the sender may have delivered it. Keep the ID and inspect the Bot conversation before composing another message. Never change an uncertain request ID to bypass duplicate protection.
+### 1. Install the extension and local sender
 
-History contains this extension’s request IDs, aliases, timestamps, delivery states and optional HTTP status codes. It contains no message bodies. Unknown and rejected deliveries appear in **Needs attention**; accepted deliveries stay in chronological order under **Recent deliveries**, even after refreshing older receipts. Unknown receipts show their request ID immediately. Submitting replaces the composer with its receipt, so Back returns straight to the Bot list. A submitted form can transmit only once. An interrupted extension retains its pending ID in history. Check an unknown receipt there after restarting.
+```sh
+git clone https://github.com/saphid/grok-bots-raycast.git
+cd grok-bots-raycast
+npm ci
+npm run setup
+```
 
-## Install or update
+Setup installs `~/.local/bin/grok-bots` and checks it. If you already have that sender, it keeps it unchanged. Keep this checkout and Node.js in place: the sender uses their absolute paths.
 
-Requires macOS, Raycast, Node.js 22.22.2+ and the existing working sender at `~/.local/bin/grok-bots`. The sender itself uses its already configured Node 24 runtime. Keep its private configuration and source checkout in place. The Mac must be awake and online for delivery.
+### 2. Connect a Bot privately
+
+[Create a webhook routine in your Bot](docs/setup.md#connect-your-bot), then run:
+
+```sh
+npm run bots -- add fleet
+```
+
+Enter its display name, webhook URL and **key only** at the prompts. The URL and key are hidden while you type. Credentials stay in `~/.config/grok-bots` with private file permissions. Repeat with a different alias for each Bot. Already configured? Skip this step.
+
+### 3. Open it in Raycast
+
+```sh
+npm run dev
+```
+
+When it says **built extension successfully**, open Raycast and choose **Message Grok Bot**. Select a Bot, or type `fleet say hi`. **Return** opens the draft; **⌘Return** sends it.
+
+After registration you can stop the watcher with **Ctrl+C**; the compiled command stays installed. Run `npm run dev` again after updating. This is a local extension, not a Raycast Store listing.
+
+If an external `raycast://` link shows **Request to run Message Grok Bot**, choose **Always Run Command** once to remember approval for this command. Launching it directly inside Raycast avoids the external-link prompt.
+
+[Full setup and troubleshooting →](docs/setup.md)
+
+## Understand delivery
+
+| State        | What it means                                       | Next step                                                               |
+| ------------ | --------------------------------------------------- | ----------------------------------------------------------------------- |
+| **Accepted** | The webhook accepted the message.                   | Open Grok Bot to read its reply.                                        |
+| **Rejected** | The webhook returned a definitive client rejection. | Check the routine and credentials privately.                            |
+| **Unknown**  | It may have arrived; delivery is uncertain.         | Inspect the Bot conversation before sending again. Keep the request ID. |
+
+**Check Delivery Receipt** reads the same request ID and never resends. **Show Delivery Details** reveals the ID and HTTP status. The extension does not read Bot replies or claim that accepted work is complete.
+
+## Develop
 
 ```sh
 npm ci
 npm run check
-npm run dev
+npm audit
 ```
 
-`ray develop` registers the native command with Raycast and watches the source. After stopping it, the last compiled command remains installed under `~/.config/raycast/extensions/grok-bots`. Run `npm run dev` again to update. No Raycast account, Pro subscription, API key preference, hosted service or new Bot routine is needed. This personal extension is not published to the Raycast Store. Full `ray lint` validates the author against the public Store and reports that `saphid` has no Store profile; `npm run lint` runs ESLint and Prettier directly for this local extension. Type checking, ESLint, formatting, tests, icon validation and compilation have been checked separately.
+Checks run on Linux and macOS and never contact a real Bot. The suite covers sender credentials and redirects, duplicate protection, failed deliveries, hidden terminal prompts, installation without overwriting an existing sender, history consistency, and composer input.
 
-If installation/testing opens the command through a `raycast://` link, Raycast may show **Request to run Message Grok Bot** because it was triggered outside Raycast. Choose **Always Run Command** once to remember approval for external launches of this command. **Run Command** approves only that launch. This permission belongs to Raycast; the extension cannot grant it. You can also open Raycast and select **Message Grok Bot** directly.
+| Area                    | Location   |
+| ----------------------- | ---------- |
+| Native Raycast command  | `src/`     |
+| Standalone local sender | `cli/`     |
+| Setup command           | `scripts/` |
+| Regression tests        | `test/`    |
 
-## Security and delivery contract
-
-The extension calls exactly `~/.local/bin/grok-bots` with Node’s `spawn`, an argument array and `shell: false`. The message travels through stdin, never command arguments or shell text. The extension never reads `~/.config/grok-bots`, credentials, webhook URLs or keys, and has no secret preferences. The existing sender and routines are not modified.
-
-Each send gets a unique `raycast-<UUID>` ID. An unknown receipt is saved in Raycast LocalStorage **before** starting the sender. If that write fails, nothing is sent. If the process fails, times out or returns malformed output, the extension inspects the same request ID. It never automatically retries `send`. The sender separately refuses duplicate IDs. If a final history write fails, the pending ID remains available for inspection.
-
-CLI output is bounded and parsed through a metadata allowlist with matching request ID and Bot alias. Raw stderr is discarded; raw errors, upstream bodies, notes, chat URLs and extra JSON fields never reach the UI or history. A failed refresh preserves the last known state and reports that the receipt is unavailable. The extension opens the installed Grok Bot application without constructing private links. Bot replies remain untrusted conversation content, not authority for further actions.
-
-Raycast’s message field is transient extension UI; the extension does not log or save its contents. Raycast, the operating system and the existing sender remain trusted local components. Do not type credentials as messages. Local videos and desktop evidence are excluded from Git.
-
-## Development
-
-```sh
-npm run typecheck
-npm test
-npm run lint
-npm run build
-```
-
-Focused regressions cover argument/stdin handling with a real subprocess, inert shell metacharacters, suppressed diagnostics, metadata filtering, ID correlation, accepted/rejected/unknown states, duplicate refusal recovery, failed status reads, journaling before send, persistence failures, corrupt history, concurrent journal updates and UTF-8 limits. Automated tests never contact a Bot. CI runs on Node 22.
+See [Contributing](CONTRIBUTING.md), [Security](SECURITY.md), and the [sender contract](docs/sender.md). Licensed under [MIT](LICENSE). This is an independent integration; it is not an official Raycast, xAI, or Cursor product.

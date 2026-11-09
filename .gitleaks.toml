@@ -1,0 +1,9 @@
+title = "Grok Bots secret scanning"
+
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Public Raycast LocalStorage key, not an API credential"
+regexTarget = "secret"
+regexes = ['''^delivery-receipts-v1$''']

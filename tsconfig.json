@@ -9,7 +9,8 @@
     "skipLibCheck": true,
     "resolveJsonModule": true,
     "moduleResolution": "node",
-    "noEmit": true
+    "noEmit": true,
+    "allowImportingTsExtensions": true
   },
-  "include": ["src", "test", "raycast-env.d.ts"]
+  "include": ["src", "cli", "scripts", "test", "raycast-env.d.ts"]
 }
